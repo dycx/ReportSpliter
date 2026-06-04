@@ -30,6 +30,7 @@ class Orchestrator:
         slicing_engine: str = "auto",
         # Phase 4 参数
         llm_base_url: str = None,
+        llm_chat_endpoint: str = None,
         llm_model: str = None,
         llm_api_key: str = "",
     ):
@@ -48,6 +49,7 @@ class Orchestrator:
 
         # Phase 4 参数
         self.llm_base_url = llm_base_url
+        self.llm_chat_endpoint = llm_chat_endpoint
         self.llm_model = llm_model
         self.llm_api_key = llm_api_key
 
@@ -72,6 +74,7 @@ class Orchestrator:
             project_root=str(self.project_root),
             joern_path=self.joern_path,
             llm_base_url=self.llm_base_url,
+            llm_chat_endpoint=self.llm_chat_endpoint,
             llm_model=self.llm_model,
             llm_api_key=self.llm_api_key,
             enable_joern=self.enable_joern,
@@ -211,6 +214,7 @@ class Orchestrator:
             base_url=self.llm_base_url,
             model=self.llm_model,
             api_key=self.llm_api_key,
+            chat_endpoint=self.llm_chat_endpoint,
         )
 
         deps_report = str(self.deps_report_path) if self.deps_report_path.exists() else None
@@ -357,9 +361,10 @@ Examples:
     parser.add_argument("--skip-phase1", action="store_true", help="跳过 Phase 1 (使用已有切片结果)")
 
     # Phase 4 参数
-    parser.add_argument("--llm-base-url", help="LLM base URL")
-    parser.add_argument("--llm-model", help="LLM 模型名称")
-    parser.add_argument("--llm-api-key", default="", help="LLM API Key")
+    parser.add_argument("--llm-base-url", help="LLM API 地址 (如 http://localhost:1234/v1)")
+    parser.add_argument("--llm-chat-endpoint", help="自定义 chat 端点 (如 /chat/ 或 /v1/chat/completions)")
+    parser.add_argument("--llm-model", help="模型名称 (如 gpt-4o, qwen3.5)")
+    parser.add_argument("--llm-api-key", default="", help="API Key (也支持环境变量 LLM_API_KEY)")
     parser.add_argument("--skip-phase4", action="store_true", help="跳过 Phase 4")
 
     args = parser.parse_args()
@@ -372,6 +377,7 @@ Examples:
         joern_path=args.joern_path,
         slicing_engine=args.slicing_engine,
         llm_base_url=args.llm_base_url,
+        llm_chat_endpoint=args.llm_chat_endpoint,
         llm_model=args.llm_model,
         llm_api_key=args.llm_api_key,
     )

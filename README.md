@@ -102,11 +102,22 @@ Phase 1:
   --slicing-engine          切片引擎: joern|wala|sqlglot|auto (默认: auto)
   --skip-phase1             跳过 Phase 1 (使用已有切片结果)
 
-Phase 4:
-  --llm-base-url            LLM base URL (如 http://localhost:8080)
-  --llm-model               LLM 模型名称
-  --llm-api-key             LLM API Key
+Phase 4 (AI 补全):
+  --llm-base-url            LLM API 地址 (如 http://localhost:8080/v1)
+  --llm-chat-endpoint       自定义 chat 端点 (默认: 自动探测)
+  --llm-model               模型名称 (如 gpt-4o, qwen3.5, deepseek-chat)
+  --llm-api-key             API Key (也支持环境变量 LLM_API_KEY)
   --skip-phase4             跳过 Phase 4
+```
+
+### Phase 4 单独运行
+
+```bash
+python src/phase4_ai_completion.py --module-dir output/extracted_module \
+  --base-url http://localhost:8080/v1 \
+  --chat-endpoint /chat/completions \
+  --model qwen3.5 \
+  --api-key YOUR_KEY
 ```
 
 ## 环境要求

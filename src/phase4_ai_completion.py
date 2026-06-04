@@ -22,13 +22,23 @@ class AICompleter:
         base_url: str,
         model: str,
         api_key: str = "",
+        chat_endpoint: str = None,
         timeout: int = 120,
     ):
         self.base_url = base_url.rstrip('/')
         self.model = model
         self.api_key = api_key
         self.timeout = timeout
-        self.chat_url = f"{self.base_url}/v1/chat/completions"
+        
+        # 支持自定义 chat 端点
+        if chat_endpoint:
+            endpoint = chat_endpoint.lstrip('/')
+            if endpoint.startswith('v1/'):
+                self.chat_url = f"{self.base_url}/{endpoint}"
+            else:
+                self.chat_url = f"{self.base_url}/v1/{endpoint}"
+        else:
+            self.chat_url = f"{self.base_url}/v1/chat/completions"
 
     def _call_llm(self, prompt: str, system: str = None, max_tokens: int = 4000) -> str:
         """调用 LLM"""
@@ -246,9 +256,10 @@ def main():
     parser.add_argument("--module-dir", required=True, help="提取的模块目录")
     parser.add_argument("--deps-report", help="Phase 3 输出的依赖报告 JSON")
     parser.add_argument("--language", choices=["java", "scala", "python", "cpp", "auto"], default="auto")
-    parser.add_argument("--base-url", required=True, help="LLM base URL (如 http://localhost:8080)")
-    parser.add_argument("--model", required=True, help="LLM 模型名称")
-    parser.add_argument("--api-key", default="", help="LLM API Key")
+    parser.add_argument("--base-url", required=True, help="LLM API 地址 (如 http://localhost:1234/v1)")
+    parser.add_argument("--chat-endpoint", help="自定义 chat 端点 (如 /chat/ 或 /v1/chat/completions)")
+    parser.add_argument("--model", required=True, help="模型名称 (如 gpt-4o, qwen3.5)")
+    parser.add_argument("--api-key", default="", help="API Key (也支持环境变量 LLM_API_KEY)")
     parser.add_argument("--output", default="completion_result.json", help="补全结果输出路径")
     parser.add_argument("--dry-run", action="store_true", help="只生成不写入")
 
@@ -258,6 +269,7 @@ def main():
         base_url=args.base_url,
         model=args.model,
         api_key=args.api_key,
+        chat_endpoint=args.chat_endpoint,
     )
 
     language = args.language if args.language != "auto" else None
