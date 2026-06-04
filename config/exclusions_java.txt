@@ -1,0 +1,39 @@
+# WALA Exclusions Configuration
+# 排除底层框架和标准库，防止切片结果膨胀和内存溢出
+# 只保留业务代码的切片结果
+
+# ===== Java 标准库 =====
+java\\/awt\\/.*
+javax\\/swing\\/.*
+javax\\/imageio\\/.*
+sun\\/.*
+com\\/sun\\/.*
+
+# ===== 常用第三方框架 =====
+# Spring 框架
+org\\/springframework\\/.*
+
+# Apache Commons
+org\\/apache\\/.*
+
+# 日志框架
+org\\/slf4j\\/.*
+ch\\/qos\\/logback\\/.*
+org\\/apache\\/log4j\\/.*
+org\\/apache\\/logging\\/log4j\\/.*
+
+# JSON 序列化
+com\\/fasterxml\\/jackson\\/.*
+com\\/google\\/gson\\/.*
+
+# Google Guava
+com\\/google\\/common\\/.*
+
+# 测试框架
+org\\/junit\\/.*
+org\\/mockito\\/.*
+org\\/testng\\/.*
+
+# ===== 添加你的业务代码包前缀 =====
+# 例如: com\\/yourcompany\\/.*
+# 注意: 不要在这里排除你自己的业务代码！

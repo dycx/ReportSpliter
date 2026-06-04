@@ -1,0 +1,117 @@
+这份实施文档是基于你拥有的**完全源码权限**以及多语言技术栈（Java/Scala/C++/Python/Spark SQL）量身定制的工程手册。它摒弃了理论假设，直接指向可落地执行的操作步骤。
+
+---
+
+# 全栈源码级子模块切片与剥离工程实施手册
+
+## 一、 工程目标与前提
+
+* **目标：** 将多语言单体或服务化架构中的特定功能，精准剥离为逻辑完整、可独立运行的子模块。
+* **核心原则：** 允许代码重复，但必须保证单模块逻辑计算链路 100% 完整。
+* **源码前提：** 必须拥有目标服务全量源码，且具备与其生产环境一致的构建能力。
+
+---
+
+## 二、 核心分析与裁剪引擎配置
+
+为确保“单组件极限准确率”，本方案采用多引擎并行策略。
+
+### 1. Java / Scala 切片引擎 (WALA)
+
+* **系统要求：** JDK 11/17, Maven 3.8+。
+* **准备步骤：**
+1. **带参编译：** 在项目根目录执行：
+`mvn clean compile -Dmaven.compiler.debug=true -Dmaven.compiler.debuglevel=lines,vars,source`
+2. **配置排除清单 (`exclusions.txt`)：** 在资源目录创建文件，明确排除底层框架：
+```text
+java\/awt\/.*, javax\/swing\/.*, sun\/.*, org\/springframework\/.*, org\/apache\/.*, org\/slf4j\/.*
+
+```
+
+
+3. **核心调用逻辑：** 使用 WALA 核心 API 加载 `target/classes`，通过 `Slicer.computeBackwardSlice()` 传入入口 API 或 Sink 节点，利用 JVM 指针分析追踪数据流。
+
+
+
+### 2. C++ 切片引擎 (SVF + Clang)
+
+* **系统要求：** Clang 14.0+, CMake, SVF 库。
+* **准备步骤（GCC 到 LLVM 的桥接）：**
+1. **生成 IR：** 在分析环境容器中，将 Makefile 或 CMake 中的 `gcc` 替换为 `clang++`，并增加编译选项 `-O0 -g -S -emit-llvm`。
+2. **执行切片：**
+```bash
+# 1. 链接 IR 文件
+llvm-link *.ll -S -o full_module.ll
+# 2. 调用 SVF 执行切片
+slicer -m your_target_function -dir backward -print-slice full_module.ll > slice_out.txt
+
+```
+
+
+
+
+
+### 3. Spark SQL 数据血缘引擎 (SQLGlot)
+
+* **系统要求：** Python 3.8+, `pip install sqlglot`。
+* **准备步骤：**
+1. **提取：** 从宿主代码中通过正则或 WALA 裁剪结果提取 `spark.sql("...")` 字符串。
+2. **执行血缘追踪：**
+```python
+from sqlglot.lineage import lineage
+# 追踪特定字段的来源
+node = lineage(column="target_col", sql=sql_query, dialect="spark")
+# 递归遍历 node.downstream 获取所有原始表，完成逻辑剥离
+
+```
+
+
+
+
+
+---
+
+## 三、 工程化实施流程 (标准化 SOP)
+
+### 第一步：环境隔离与源码归集
+
+所有分析必须在 Docker 容器中进行，防止本地环境污染导致编译失败。
+
+1. **创建分析容器：** 编写 `Dockerfile`，安装 `openjdk-17`, `maven`, `clang`, `llvm`, `python3.10`。
+2. **目录挂载：** 将项目源码映射至 `/data/project`。
+
+### 第二步：确定切片入口 (Sinks)
+
+利用 AI 辅助定义切片起点。
+
+1. 输入：项目的 API 文档、`docker-compose.yml` 或路由配置文件。
+2. 输出：针对每个子组件的入口函数列表 (例如 `ReportController.export`) 或输出操作 (例如 `file.write`)。
+
+### 第三步：多引擎并行裁剪
+
+1. **并行任务：** 针对不同组件启动对应的切片脚本（WALA/SVF/SQLGlot）。
+2. **行号映射：** 工具输出类名与行号。
+3. **物理剥离：** 执行 Python 脚本，根据行号裁剪文件，复制至 `./output/[component_name]/`。
+
+### 第四步：智能补全与缝合 (本地 Agent 闭环)
+
+剥离的代码必然存在缺失，使用本地部署的 `Qwen3-coder-next` 执行最后一步。
+
+1. **进入剥离后的目录：** `cd ./output/target_module`。
+2. **调用本地模型生成环境：**
+* **指令：** “扫描当前代码，生成缺失的 pom.xml/CMakeLists.txt，并根据代码中缺失的外部类，生成对应的 Stub/Mock 存根文件。”
+
+
+3. **独立构建验证：** 运行 `mvn clean compile` 或 `make`，若报错，将错误信息喂给模型进行自动修复，直到编译成功。
+
+---
+
+## 四、 风险缓解与质量控制
+
+* **内存溢出 (OOM)：** 若 WALA 或 SVF 报错 OOM，必须增大 Docker 容器内存限制，或精简 `exclusions.txt`。
+* **切片断流：** 若 AI 反馈代码编译无法进行，说明切片漏掉关键依赖。此时应检查 WALA/SVF 的配置文件，调高指针分析的精度等级 (例如从 0-CFA 提升至 1-CFA)。
+* **数据一致性：** 若 Spark SQL 血缘追踪失败，说明 SQL 过于复杂（包含大量动态 SQL 生成），建议手动拆分 SQL 语句后再进行 lineage 分析。
+
+---
+
+这份手册即刻起即可作为你的本地工程落地指南。每一行代码和指令都可以直接复制到你的分析环境中使用。你现在可以开始尝试执行**第一步：在 Docker 容器中完成目标 Java 组件的带参编译**。如有任何报错，请直接反馈错误信息。
