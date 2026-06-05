@@ -164,28 +164,44 @@ class JoernAnalyzer:
         self.cpg_path = None
 
     def _find_joern(self) -> str:
-        """查找 Joern 可执行文件"""
-        # 检查 PATH
-        for name in ['joern', 'joern-cli']:
+        """查找 Joern 可执行文件
+
+        joern-cli.zip 解压后结构:
+            joern-cli/
+            ├── joern            # 交互式 Shell
+            ├── joern-parse      # 代码解析 (生成 CPG)
+            ├── joern-export     # 图导出
+            ├── joern-slice      # CPG 切片
+            ├── javasrc2cpg      # Java 前端
+            ├── c2cpg.sh         # C/C++ 前端
+            ├── pysrc2cpg        # Python 前端
+            └── ...
+
+        代码通过 joern_path + '-parse' 拼接命令，所以 joern_path
+        必须指向 'joern' 可执行文件，不能是 'joern-cli'（那是目录名）。
+        """
+        # 检查 PATH 中是否有 joern
+        for name in (['joern.exe', 'joern'] if sys.platform == 'win32' else ['joern']):
             path = subprocess.run(
-                ['which', name] if sys.platform != 'win32' else ['where', name],
+                ['where' if sys.platform == 'win32' else 'which', name],
                 capture_output=True, text=True
-            ).stdout.strip()
+            ).stdout.strip().split('\n')[0].strip()
             if path:
                 return path
 
         # 检查常见安装位置
+        exe = 'joern.exe' if sys.platform == 'win32' else 'joern'
         common_paths = [
+            Path.home() / 'bin' / 'joern' / 'joern-cli',
             Path.home() / 'joern' / 'joern-cli',
             Path.home() / '.joern',
-            Path('/opt/joern'),
-            Path('C:/joern'),  # Windows
+            Path('/opt/joern') / 'joern-cli',
+            Path('C:/joern') / 'joern-cli',
+            Path('C:/joern') / 'joern-cli' / 'bin',
         ]
         for p in common_paths:
-            if (p / 'joern').exists():
-                return str(p / 'joern')
-            if (p / 'joern-cli').exists():
-                return str(p / 'joern-cli')
+            if (p / exe).exists():
+                return str(p / exe)
 
         return 'joern'  # fallback
 

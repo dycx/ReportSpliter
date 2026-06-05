@@ -134,30 +134,49 @@ python src/phase4_ai_completion.py --module-dir output/extracted_module \
 
 Joern 需要 **JDK 21**，请先安装: https://adoptium.net/
 
+#### joern-cli.zip 目录结构
+
+下载解压后，所有可执行文件在 `joern-cli/` 目录下:
+
+```
+joern-cli/
+├── joern            # 交互式 Shell（主要入口）
+├── joern-parse      # 代码解析，生成 CPG
+├── joern-export     # 图导出
+├── joern-slice      # CPG 切片
+├── javasrc2cpg      # Java 前端
+├── c2cpg.sh         # C/C++ 前端
+├── pysrc2cpg        # Python 前端
+├── jssrc2cpg.sh     # JavaScript 前端
+└── ...
+```
+
+代码通过 `joern_path + '-parse'` 拼接命令，所以 `--joern-path` **必须指向 `joern` 可执行文件**。
+
 #### Windows
 
 **方式一: 下载 zip（推荐）**
 
 ```powershell
-# 下载最新版 joern-cli.zip
+# 下载最新版
 Invoke-WebRequest -Uri "https://github.com/joernio/joern/releases/latest/download/joern-cli.zip" -OutFile joern-cli.zip
 
-# 解压到 C:\joern
+# 解压（得到 joern-cli/ 目录）
 Expand-Archive -Path joern-cli.zip -DestinationPath C:\joern
 
-# 添加到 PATH（当前会话）
-$env:PATH += ";C:\joern\joern-cli\bin"
+# 验证（注意: 是 joern 不是 joern-cli）
+C:\joern\joern-cli\joern --version
 
-# 验证
-joern-cli --version
+# 添加到 PATH（当前会话）
+$env:PATH += ";C:\joern\joern-cli"
 ```
 
-永久加入 PATH: 系统属性 → 环境变量 → Path → 新建 → `C:\joern\joern-cli\bin`
+永久加入 PATH: 系统属性 → 环境变量 → Path → 新建 → `C:\joern\joern-cli`
 
 **方式二: WSL**
 
 ```bash
-# 在 WSL 中执行
+# 在 WSL 中执行（与 Linux 相同）
 wget https://github.com/joernio/joern/releases/latest/download/joern-install.sh
 chmod +x ./joern-install.sh
 sudo ./joern-install.sh
@@ -175,20 +194,28 @@ docker run --rm -it -v ${PWD}:/app:rw -w /app ghcr.io/joernio/joern joern
 wget https://github.com/joernio/joern/releases/latest/download/joern-install.sh
 chmod +x ./joern-install.sh
 sudo ./joern-install.sh
-joern-cli --version
+
+# 验证
+joern --version
 ```
+
+安装脚本默认装到 `~/bin/joern/`，并创建 symlink 到 `/usr/local/bin/`。
 
 #### 指定 Joern 路径
 
-如果 Joern 不在 PATH 中，可通过 `--joern-path` 手动指定:
+如果 Joern 不在 PATH 中，通过 `--joern-path` 指向 `joern` 可执行文件:
 
 ```bash
-python src/orchestrator.py /path/to/project --joern-path /path/to/joern-cli/bin/joern-cli
+# Windows
+python src/orchestrator.py /path/to/project --joern-path C:\joern\joern-cli\joern
+
+# macOS / Linux
+python src/orchestrator.py /path/to/project --joern-path ~/bin/joern/joern-cli/joern
 ```
 
-> `--joern-path` 指向 `joern-cli` 可执行文件，代码会自动拼接 `-parse` 后缀调用 `joern-cli-parse`。
+> `--joern-path` 指向 `joern`，代码自动拼接 `-parse` 调用 `joern-parse` 生成 CPG。
 >
-> 自动搜索顺序: `joern` → `joern-cli`（PATH）→ `~/joern/joern-cli` → `~/.joern` → `/opt/joern` → `C:/joern`
+> 自动搜索顺序: PATH(`joern`) → `~/bin/joern/joern-cli` → `~/joern/joern-cli` → `~/.joern` → `/opt/joern/joern-cli` → `C:/joern/joern-cli`
 
 ## 详细文档
 
