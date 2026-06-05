@@ -158,50 +158,62 @@ class JoernAnalyzer:
         ''',
     }
 
+    _BAT = '.bat' if sys.platform == 'win32' else ''
+
     def __init__(self, project_root: str, joern_path: str = None):
         self.project_root = Path(project_root)
         self.joern_path = joern_path or self._find_joern()
         self.cpg_path = None
 
-    def _find_joern(self) -> str:
-        """查找 Joern 可执行文件
+    @staticmethod
+    def _strip_bat(path: str) -> str:
+        """去掉 Windows .bat 后缀，统一存储基础路径"""
+        if path.lower().endswith('.bat'):
+            return path[:-4]
+        return path
 
-        joern-cli.zip 解压后结构:
+    def _find_joern(self) -> str:
+        """查找 Joern 可执行文件，返回不带平台后缀的基础路径。
+
+        joern-cli.zip 解压后同时包含 Unix 和 Windows 两套脚本:
             joern-cli/
-            ├── joern            # 交互式 Shell
-            ├── joern-parse      # 代码解析 (生成 CPG)
-            ├── joern-export     # 图导出
-            ├── joern-slice      # CPG 切片
-            ├── javasrc2cpg      # Java 前端
-            ├── c2cpg.sh         # C/C++ 前端
-            ├── pysrc2cpg        # Python 前端
+            ├── joern / joern.bat          # 交互式 Shell
+            ├── joern-parse / joern-parse.bat  # 代码解析 (生成 CPG)
+            ├── joern-export / joern-export.bat
+            ├── joern-slice / joern-slice.bat
+            ├── javasrc2cpg / javasrc2cpg.bat
+            ├── c2cpg.sh / c2cpg.bat
+            ├── pysrc2cpg / pysrc2cpg.bat
             └── ...
 
-        代码通过 joern_path + '-parse' 拼接命令，所以 joern_path
-        必须指向 'joern' 可执行文件，不能是 'joern-cli'（那是目录名）。
+        Windows 必须调用 .bat 文件，Unix 调用无后缀脚本。
+        本方法返回不带 .bat 的路径，调用处通过 _BAT 属性加后缀。
         """
-        # 检查 PATH 中是否有 joern
-        for name in (['joern.exe', 'joern'] if sys.platform == 'win32' else ['joern']):
+        # 检查 PATH
+        if sys.platform == 'win32':
+            search = ['joern.bat', 'joern']
+        else:
+            search = ['joern']
+        for name in search:
             path = subprocess.run(
                 ['where' if sys.platform == 'win32' else 'which', name],
                 capture_output=True, text=True
             ).stdout.strip().split('\n')[0].strip()
             if path:
-                return path
+                return self._strip_bat(path)
 
         # 检查常见安装位置
-        exe = 'joern.exe' if sys.platform == 'win32' else 'joern'
         common_paths = [
             Path.home() / 'bin' / 'joern' / 'joern-cli',
             Path.home() / 'joern' / 'joern-cli',
             Path.home() / '.joern',
             Path('/opt/joern') / 'joern-cli',
             Path('C:/joern') / 'joern-cli',
-            Path('C:/joern') / 'joern-cli' / 'bin',
         ]
         for p in common_paths:
-            if (p / exe).exists():
-                return str(p / exe)
+            for exe in ('joern.bat', 'joern'):
+                if (p / exe).exists():
+                    return str(p / (exe.replace('.bat', '')))
 
         return 'joern'  # fallback
 
@@ -211,7 +223,7 @@ class JoernAnalyzer:
             output_path = str(self.project_root / '.cpg.bin')
 
         cmd = [
-            self.joern_path + '-parse',
+            f"{self.joern_path}-parse{self._BAT}",
             str(self.project_root),
             '--output', output_path
         ]
@@ -249,7 +261,7 @@ println(upickle.default.write(result))
             script_path = f.name
 
         try:
-            cmd = [self.joern_path, '--script', script_path]
+            cmd = [f"{self.joern_path}{self._BAT}", '--script', script_path]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
             if result.returncode == 0:

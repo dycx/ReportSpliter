@@ -41,9 +41,15 @@ class SlicingEngine:
 class JoernSlicer(SlicingEngine):
     """Joern CPG 切片"""
 
+    _BAT = '.bat' if sys.platform == 'win32' else ''
+
     def __init__(self, project_root: str, joern_path: str = None):
         super().__init__(project_root)
-        self.joern_path = joern_path or 'joern'
+        # 去掉 .bat 后缀统一存储，拼接命令时加 _BAT
+        path = joern_path or 'joern'
+        if path.lower().endswith('.bat'):
+            path = path[:-4]
+        self.joern_path = path
         self.cpg_path = None
 
     def generate_cpg(self) -> str:
@@ -51,7 +57,7 @@ class JoernSlicer(SlicingEngine):
         self.cpg_path = str(self.project_root / '.cpg.bin')
         print(f"[Joern] Generating CPG for {self.project_root}...")
 
-        cmd = [f"{self.joern_path}-parse", str(self.project_root), '--output', self.cpg_path]
+        cmd = [f"{self.joern_path}-parse{self._BAT}", str(self.project_root), '--output', self.cpg_path]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
 
         if result.returncode != 0:
@@ -107,7 +113,7 @@ println(upickle.default.write(results))
                 script_path = f.name
 
             try:
-                cmd = [self.joern_path, '--script', script_path]
+                cmd = [f"{self.joern_path}{self._BAT}", '--script', script_path]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
                 if result.returncode == 0:

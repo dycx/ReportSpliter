@@ -206,14 +206,16 @@ joern --version
 如果 Joern 不在 PATH 中，通过 `--joern-path` 指向 `joern` 可执行文件:
 
 ```bash
-# Windows
+# Windows — 代码自动追加 .bat 后缀
 python src/orchestrator.py /path/to/project --joern-path C:\joern\joern-cli\joern
 
 # macOS / Linux
 python src/orchestrator.py /path/to/project --joern-path ~/bin/joern/joern-cli/joern
 ```
 
-> `--joern-path` 指向 `joern`，代码自动拼接 `-parse` 调用 `joern-parse` 生成 CPG。
+> `--joern-path` 指向 `joern`（不含 `.bat`），代码自动拼接：
+> - Unix: `joern-parse`、`joern --script`
+> - Windows: `joern-parse.bat`、`joern.bat --script`
 >
 > 自动搜索顺序: PATH(`joern`) → `~/bin/joern/joern-cli` → `~/joern/joern-cli` → `~/.joern` → `/opt/joern/joern-cli` → `C:/joern/joern-cli`
 
