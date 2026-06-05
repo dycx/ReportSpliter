@@ -149,7 +149,7 @@ Expand-Archive -Path joern-cli.zip -DestinationPath C:\joern
 $env:PATH += ";C:\joern\joern-cli\bin"
 
 # 验证
-joern --version
+joern-cli --version
 ```
 
 永久加入 PATH: 系统属性 → 环境变量 → Path → 新建 → `C:\joern\joern-cli\bin`
@@ -175,7 +175,7 @@ docker run --rm -it -v ${PWD}:/app:rw -w /app ghcr.io/joernio/joern joern
 wget https://github.com/joernio/joern/releases/latest/download/joern-install.sh
 chmod +x ./joern-install.sh
 sudo ./joern-install.sh
-joern --version
+joern-cli --version
 ```
 
 #### 指定 Joern 路径
@@ -183,10 +183,12 @@ joern --version
 如果 Joern 不在 PATH 中，可通过 `--joern-path` 手动指定:
 
 ```bash
-python src/orchestrator.py /path/to/project --joern-path /path/to/joern-cli/bin/joern
+python src/orchestrator.py /path/to/project --joern-path /path/to/joern-cli/bin/joern-cli
 ```
 
-自动搜索路径: `PATH` → `~/joern/joern-cli` → `~/.joern` → `/opt/joern` → `C:/joern`
+> `--joern-path` 指向 `joern-cli` 可执行文件，代码会自动拼接 `-parse` 后缀调用 `joern-cli-parse`。
+>
+> 自动搜索顺序: `joern` → `joern-cli`（PATH）→ `~/joern/joern-cli` → `~/.joern` → `/opt/joern` → `C:/joern`
 
 ## 详细文档
 
