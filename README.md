@@ -130,6 +130,64 @@ python src/phase4_ai_completion.py --module-dir output/extracted_module \
 - WALA (Phase 1 Java): https://github.com/valerioancona/wala
 - SQLGlot (Phase 1 SQL): `pip install sqlglot`
 
+### 安装 Joern
+
+Joern 需要 **JDK 21**，请先安装: https://adoptium.net/
+
+#### Windows
+
+**方式一: 下载 zip（推荐）**
+
+```powershell
+# 下载最新版 joern-cli.zip
+Invoke-WebRequest -Uri "https://github.com/joernio/joern/releases/latest/download/joern-cli.zip" -OutFile joern-cli.zip
+
+# 解压到 C:\joern
+Expand-Archive -Path joern-cli.zip -DestinationPath C:\joern
+
+# 添加到 PATH（当前会话）
+$env:PATH += ";C:\joern\joern-cli\bin"
+
+# 验证
+joern --version
+```
+
+永久加入 PATH: 系统属性 → 环境变量 → Path → 新建 → `C:\joern\joern-cli\bin`
+
+**方式二: WSL**
+
+```bash
+# 在 WSL 中执行
+wget https://github.com/joernio/joern/releases/latest/download/joern-install.sh
+chmod +x ./joern-install.sh
+sudo ./joern-install.sh
+```
+
+**方式三: Docker**
+
+```powershell
+docker run --rm -it -v ${PWD}:/app:rw -w /app ghcr.io/joernio/joern joern
+```
+
+#### macOS / Linux
+
+```bash
+wget https://github.com/joernio/joern/releases/latest/download/joern-install.sh
+chmod +x ./joern-install.sh
+sudo ./joern-install.sh
+joern --version
+```
+
+#### 指定 Joern 路径
+
+如果 Joern 不在 PATH 中，可通过 `--joern-path` 手动指定:
+
+```bash
+python src/orchestrator.py /path/to/project --joern-path /path/to/joern-cli/bin/joern
+```
+
+自动搜索路径: `PATH` → `~/joern/joern-cli` → `~/.joern` → `/opt/joern` → `C:/joern`
+
 ## 详细文档
 
 - [完整技术文档](docs/technical-design.md) — 包含技术背景、工具对比、实施细节
