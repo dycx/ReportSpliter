@@ -1,0 +1,22 @@
+project:
+  root: .
+  language: java
+  exclude_dirs: [.git, node_modules, .venv, venv, target, build, dist, out, .report-spliter, .idea, .vscode, __pycache__, generated]
+  exclude_globs: ["**/generated/**", "**/target/**", "**/build/**"]
+
+modules:
+  - name: report-export
+    description: 报表导出功能（含计算与 PDF 渲染）
+    entries:
+      - type: http_endpoint
+        path: /api/reports
+    resources:
+      - src/main/resources/**
+  - name: user-mgmt
+    description: 用户管理功能
+    entries:
+      - type: http_endpoint
+        path: /api/users
+    resources:
+      - src/main/resources/**
+

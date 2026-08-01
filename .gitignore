@@ -22,6 +22,8 @@ Thumbs.db
 
 # Output
 output/
+out/
+.report-spliter/
 
 # Logs
 *.log

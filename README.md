@@ -1,228 +1,191 @@
-# ReportSpliter — 代码子模块高精度切片与剥离工具
+# ReportSpliter — Java/Spring 仓库模块级划分工具
 
-> 将多语言项目中的特定功能，精准剥离为逻辑完整、可独立运行的子模块。
+把 Java/Spring 代码仓库按功能入口（HTTP 端点 / 定时任务 / 监听器 / main）划分为
+**逻辑完整的模块包**，再进一步：
+
+- **代码 → 算法重建**（`rs algorithm`）：从代码还原算法步骤，每步带完整代码锚点；
+- **算法对齐**（`rs align`）：与设计算法（`algorithms/<module>.yaml`）对比，产出差异清单
+  与人工审核队列，定位业务代码与算法设计的未跟踪变动；
+- **设计文档导入**（`rs design-import`）：Word / Excel / Markdown 设计算法 → 统一步骤规格；
+- **报表血缘**（`rs reports` / `rs report`）：发现 Hive 表与 CSV 报告，构建列级血缘、
+  报告依赖图与 git 变更追溯。
+
+设计要点（详见 [架构设计 v1](docs/architecture-redesign.md)）：
+
+- **不要求编译通过**。交付物是带血缘关系的模块包（`manifest.json` + `code/` + `llm-context.md`），
+  目标是"这个模块完整表示某个功能怎么算出来的"。
+- **模块间允许代码重复**（共享工具类各自复制），保证单模块完整。
+- **面向 agent**：CLI 全 JSON 输出 + MCP stdio 服务，opencode / Claude Code 可直接接入。
 
 ## 快速开始
 
 ```bash
-# 一键全流程
-python src/orchestrator.py /path/to/project --language java
+# 1. 安装（Python 3.10+）
+python3 -m venv .venv
+.venv/bin/pip install -e . --no-build-isolation
 
-# 带 LLM (启用 AI 补全)
-python src/orchestrator.py /path/to/project --language java \
-  --llm-base-url http://localhost:8080 --llm-model qwen3.5
+# 2. 在目标仓库生成 project.yml 并声明模块
+cd /path/to/your-repo
+rs init . \
+  --module report-export --desc "报表导出" \
+  --entry http:/api/reports
 
-# 只用 Tree-sitter (不需要 Joern，更快)
-python src/orchestrator.py /path/to/project --no-joern --language python
+# 3. 一键跑全流程：index → discover → resolve → export → validate
+rs run report-export
 ```
 
-## 项目结构
+## CLI
 
 ```
-src/
-├── orchestrator.py                 # 全流程编排器
-├── phase0_entry_discovery.py       # 入口发现 (Joern + Tree-sitter + LLM)
-├── phase1_slicing.py               # 静态切片 (Joern/WALA/SQLGlot)
-├── phase2_extract_code.py          # 代码提取
-├── phase3_dependency_analysis.py   # 依赖分析
-├── phase4_ai_completion.py         # AI 补全
-└── phase5_verify.py                # 编译验证
-config/
-├── exclusions_java.txt             # WALA 排除配置模板
-docker/
-├── Dockerfile                      # 分析环境容器
+rs init [dir]              # 生成 project.yml（--module / --entry 可重复）
+rs index [dir]             # 构建/更新代码图（.report-spliter/index.json）
+rs discover [dir]          # Spring 入口发现（HTTP/定时任务/监听器/main/Feign）
+rs resolve <module>        # 模块依赖闭包（调用/类型/继承/注解边反向可达）
+rs export <module>         # 物化模块包 → out/<module>/
+rs validate <module>       # 结构校验与审计（缺口/未解析调用/过度提取）
+rs run <module>            # 全流程
+rs algorithm <module>      # 代码 → 算法重建（algorithm.md / algorithm.json）
+rs align <module>          # 与设计算法对齐（差异 + 人工审核队列）
+rs design-import <module> --from <doc>  # Word/Excel/Markdown 设计文档 → algorithms/<module>.yaml
+rs reports [dir]           # 报表血缘注册表（Hive 表/CSV + 列级血缘 + 依赖图）
+rs report <name> [dir]     # 单个报表的血缘明细
+rs ls / rs show <module>   # 模块与产物状态
+rs mcp                     # 启动 MCP stdio 服务
 ```
 
-## 工作流程
+所有命令支持 `--json` 输出，供 agent 程序化消费。
 
-```
-Phase 0: 入口发现 → entry_points.json
-Phase 1: 静态切片 → slice_result.json
-Phase 2: 代码提取 → extracted_module/
-Phase 3: 依赖分析 → deps_report.json
-Phase 4: AI 补全  → Mock/Stub + 构建文件
-Phase 5: 编译验证 → verify_result.json
-```
+## 算法对齐
 
-## 分步执行
+设计算法放在 `algorithms/<module>.yaml`（步骤级规格，可手写，后续支持从文档/伪代码生成）：
+
+```yaml
+module: report-export
+steps:
+  - id: compute-total
+    kind: transform
+    label: 计算报表总额
+    inputs: [base]
+    outputs: [computed]
+    note: 设计系数 1.15，代码中需核对
+```
 
 ```bash
-# Phase 0: 入口发现
-python src/phase0_entry_discovery.py /path/to/project -o output/entry_points.json
-
-# Phase 1: 切片
-python src/phase1_slicing.py --project-root /path/to/project \
-  --entry-points output/entry_points.json --engine joern
-
-# Phase 2: 提取
-python src/phase2_extract_code.py --slice output/slice_result.json \
-  --source-root /path/to/project/src --output output/extracted_module
-
-# Phase 3: 依赖分析
-python src/phase3_dependency_analysis.py --code-dir output/extracted_module \
-  --language java --build-file /path/to/project/pom.xml
-
-# Phase 4: AI 补全
-python src/phase4_ai_completion.py --module-dir output/extracted_module \
-  --base-url http://localhost:8080 --model qwen3.5
-
-# Phase 5: 验证
-python src/phase5_verify.py --module-dir output/extracted_module --language java
+rs algorithm report-export   # 先重建代码侧算法
+rs align report-export       # 再对齐，产出差异与审核队列
 ```
 
-## 支持语言
+对齐产物：`alignment-report.md`（可读报告）、`alignment-report.json`（机器可读）、
+`review-queue.json`（人工审核队列：设计有代码无 / 代码有设计无 / 低置信度匹配）。
 
-| 语言 | Phase 0 | Phase 1 | Phase 5 |
-|------|---------|---------|---------|
-| Java | ✅ Joern/Tree-sitter | ✅ Joern/WALA | ✅ Maven |
-| Scala | ✅ Joern/Tree-sitter | ✅ Joern/WALA | ✅ SBT |
-| Python | ✅ Joern/Tree-sitter | ✅ Joern | ✅ py_compile |
-| C++ | ✅ Joern/Tree-sitter | ✅ Joern/SVF | ✅ CMake |
-| Spark SQL | ✅ Tree-sitter | ✅ SQLGlot | - |
-
-## Orchestrator 参数
-
-```
-python src/orchestrator.py <project_root> [options]
-
-必选:
-  project_root              项目根目录
-
-可选:
-  --output-dir              输出目录 (默认: project_root/output)
-  --language                语言: java|scala|python|cpp (默认: java)
-  --build-file              构建文件路径 (pom.xml 等)
-
-Phase 0:
-  --no-joern                禁用 Joern (只用 Tree-sitter)
-  --no-treesitter           禁用 Tree-sitter (只用 Joern)
-  --joern-path              Joern 可执行文件路径
-
-Phase 1:
-  --slicing-engine          切片引擎: joern|wala|sqlglot|auto (默认: auto)
-  --skip-phase1             跳过 Phase 1 (使用已有切片结果)
-
-Phase 4 (AI 补全):
-  --llm-base-url            LLM API 地址 (如 http://localhost:8080/v1)
-  --llm-chat-endpoint       自定义 chat 端点 (默认: 自动探测)
-  --llm-model               模型名称 (如 gpt-4o, qwen3.5, deepseek-chat)
-  --llm-api-key             API Key (也支持环境变量 LLM_API_KEY)
-  --skip-phase4             跳过 Phase 4
-```
-
-### Phase 4 单独运行
+设计算法也可以直接从文档导入（支持 Word .docx / Excel .xlsx / Markdown）：
 
 ```bash
-python src/phase4_ai_completion.py --module-dir output/extracted_module \
-  --base-url http://localhost:8080/v1 \
-  --chat-endpoint /chat/completions \
-  --model qwen3.5 \
-  --api-key YOUR_KEY
+rs design-import report-export --from docs/报表导出算法设计.docx
 ```
 
-## 环境要求
+导入器自动识别编号列表/表格，抽取步骤类型（read/output/control/transform）、
+输入、输出与备注，生成可直接用于 `rs align` 的规格文件。
 
-- Python 3.10+
-- `pip install requests` (Phase 4 需要)
-
-可选依赖:
-- Joern (Phase 0/1): https://github.com/joernio/joern
-- WALA (Phase 1 Java): https://github.com/valerioancona/wala
-- SQLGlot (Phase 1 SQL): `pip install sqlglot`
-
-### 安装 Joern
-
-Joern 需要 **JDK 21**，请先安装: https://adoptium.net/
-
-#### joern-cli.zip 目录结构
-
-下载解压后，所有可执行文件在 `joern-cli/` 目录下:
-
-```
-joern-cli/
-├── joern            # 交互式 Shell（主要入口）
-├── joern-parse      # 代码解析，生成 CPG
-├── joern-export     # 图导出
-├── joern-slice      # CPG 切片
-├── javasrc2cpg      # Java 前端
-├── c2cpg.sh         # C/C++ 前端
-├── pysrc2cpg        # Python 前端
-├── jssrc2cpg.sh     # JavaScript 前端
-└── ...
-```
-
-代码通过 `joern_path + '-parse'` 拼接命令，所以 `--joern-path` **必须指向 `joern` 可执行文件**。
-
-#### Windows
-
-**方式一: 下载 zip（推荐）**
-
-```powershell
-# 下载最新版
-Invoke-WebRequest -Uri "https://github.com/joernio/joern/releases/latest/download/joern-cli.zip" -OutFile joern-cli.zip
-
-# 解压（得到 joern-cli/ 目录）
-Expand-Archive -Path joern-cli.zip -DestinationPath C:\joern
-
-# 验证（注意: 是 joern 不是 joern-cli）
-C:\joern\joern-cli\joern --version
-
-# 添加到 PATH（当前会话）
-$env:PATH += ";C:\joern\joern-cli"
-```
-
-永久加入 PATH: 系统属性 → 环境变量 → Path → 新建 → `C:\joern\joern-cli`
-
-**方式二: WSL**
+## 报表血缘
 
 ```bash
-# 在 WSL 中执行（与 Linux 相同）
-wget https://github.com/joernio/joern/releases/latest/download/joern-install.sh
-chmod +x ./joern-install.sh
-sudo ./joern-install.sh
+rs reports                # 发现 Hive 表/CSV 报告，产出血缘注册表与依赖图
+rs report monthly_sales   # 查看单个报告：定义锚点、上游表、列级血缘
+rs reports --with-history # 附加 git 变更追溯（哪些提交动过报告的生产代码）
 ```
 
-**方式三: Docker**
+血缘来源：
 
-```powershell
-docker run --rm -it -v ${PWD}:/app:rw -w /app ghcr.io/joernio/joern joern
+- 独立 `.sql` 文件与宿主代码（Scala/Java/Python）内嵌 `spark.sql(...)` 中的
+  `INSERT OVERWRITE TABLE` / `CREATE TABLE AS` → Hive 表报告，SQLGlot 列级血缘；
+- `saveAsTable / insertInto / write.csv / to_csv` → 表或 CSV 报告，锚定宿主代码写点，
+  上游为该文件内的 SQL/表读取（近似，标注低置信度）；
+- 报告依赖图：`monthly_sales → sales_agg → orders/customers`，跨报告链路一目了然。
+
+## project.yml
+
+```yaml
+project:
+  root: .
+  language: java
+  exclude_dirs: [target, build, .git]
+modules:
+  - name: report-export
+    description: 报表导出功能
+    entries:
+      - type: http_endpoint
+        path: /api/reports        # 按路径前缀匹配，也支持 method + path
+      # - type: symbol
+      #   name: com.acme.report.controller.ReportExportController
+      # - type: scheduled
+      # - type: application_main
+      # - type: feign_client
+    resources:
+      - src/main/resources/**
 ```
 
-#### macOS / Linux
+## 模块包产物（out/<module>/）
+
+| 产物 | 说明 |
+|---|---|
+| `code/` | 按原项目相对路径复制的源码与资源 |
+| `manifest.json` | 机器可读清单：入口、文件、命中符号（含行号）、调用边、外部依赖、未解析调用 |
+| `llm-context.md` | 面向大模型的上下文：入口表、文件清单、逐文件符号、模块内调用链、外部依赖 |
+| `audit-report.json` | 审计：引用缺口、未解析调用、内部调用缺失、过度提取率 |
+
+## Agent 接入（opencode / Claude Code）
+
+通过 MCP 接入（`rs mcp` 是纯 stdio JSON-RPC 服务，无额外依赖）：
+
+```json
+{
+  "mcpServers": {
+    "report-spliter": {
+      "command": "/abs/path/to/repo/.venv/bin/rs",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+暴露的工具：`rs_init` / `rs_index` / `rs_discover` / `rs_modules` / `rs_resolve` /
+`rs_export` / `rs_validate` / `rs_run` / `rs_algorithm` / `rs_align` /
+`rs_reports` / `rs_report` / `rs_design_import`。
+
+## 测试
 
 ```bash
-wget https://github.com/joernio/joern/releases/latest/download/joern-install.sh
-chmod +x ./joern-install.sh
-sudo ./joern-install.sh
-
-# 验证
-joern --version
+.venv/bin/python tests/e2e_test.py
 ```
 
-安装脚本默认装到 `~/bin/joern/`，并创建 symlink 到 `/usr/local/bin/`。
+基于 `tests/fixtures/java-spring-demo/`（双功能 Spring 小仓）验证：
+模块划分正确性、交叉泄漏、共享代码重复纳入。
 
-#### 指定 Joern 路径
+## 目录结构
 
-如果 Joern 不在 PATH 中，通过 `--joern-path` 指向 `joern` 可执行文件:
-
-```bash
-# Windows — 代码自动追加 .bat 后缀
-python src/orchestrator.py /path/to/project --joern-path C:\joern\joern-cli\joern
-
-# macOS / Linux
-python src/orchestrator.py /path/to/project --joern-path ~/bin/joern/joern-cli/joern
+```
+rs/
+├── cli.py             # click CLI
+├── java_analyzer.py   # tree-sitter Java 解析（符号/调用/类型边）
+├── indexer.py         # 项目代码图
+├── discover.py        # Spring 入口发现
+├── resolve.py         # 模块依赖闭包
+├── algorithm.py       # 代码 → 算法重建
+├── align.py           # 算法对齐 + 人工审核队列
+├── design_import.py   # Word/Excel/Markdown 设计文档导入
+├── lineage.py         # 报表血缘（Hive/CSV + 列级血缘 + git 追溯）
+├── package.py         # 模块物化 + llm-context
+├── validate.py        # 审计
+├── mcp_server.py      # MCP stdio 服务
+└── pipeline.py        # 端到端编排
+tests/
+├── fixtures/java-spring-demo/   # 测试用 Spring 小仓（模块划分 + 算法对齐）
+└── fixtures/spark-sql-demo/     # 测试用 Spark SQL/CSV 小仓（报表血缘）
+docs/architecture-redesign.md    # 架构设计 v1
 ```
 
-> `--joern-path` 指向 `joern`（不含 `.bat`），代码自动拼接：
-> - Unix: `joern-parse`、`joern --script`
-> - Windows: `joern-parse.bat`、`joern.bat --script`
->
-> 自动搜索顺序: PATH(`joern`) → `~/bin/joern/joern-cli` → `~/joern/joern-cli` → `~/.joern` → `/opt/joern/joern-cli` → `C:/joern/joern-cli`
-
-## 详细文档
-
-- [完整技术文档](docs/technical-design.md) — 包含技术背景、工具对比、实施细节
-- [调研记录](docs/design-trace.md) — 与 Gemini 的原始调研对话
+> `src/` 下的旧 phase0–5 为遗留实现（不可运行/伪切片），新架构见 `rs/`。
 
 ## License
 

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "report-spliter"
+version = "0.1.0"
+description = "Java/Spring 代码仓库模块级划分工具，为 LLM/agent 分析提供模块包"
+requires-python = ">=3.10"
+dependencies = [
+    "tree-sitter>=0.25",
+    "tree-sitter-java>=0.23",
+    "PyYAML>=6.0",
+    "networkx>=3.0",
+    "click>=8.0",
+    "sqlglot>=25.0",
+    "python-docx>=1.1",
+    "openpyxl>=3.1",
+]
+
+[project.scripts]
+rs = "rs.cli:main"
+
+[tool.setuptools]
+packages = ["rs"]

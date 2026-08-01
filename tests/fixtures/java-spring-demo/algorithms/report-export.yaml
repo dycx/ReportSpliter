@@ -1,0 +1,51 @@
+module: report-export
+description: report-export 设计算法（导入自文档）
+steps:
+- id: step-1
+  kind: read
+  label: 解析日期参数
+  inputs:
+  - date
+  outputs:
+  - day
+  note: ''
+- id: step-2
+  kind: control
+  label: 校验导出权限
+  inputs:
+  - user
+  outputs:
+  - allowed
+  note: 需人工确认代码是否实现
+- id: step-3
+  kind: read
+  label: 按日期读取报表数据
+  inputs:
+  - day
+  outputs:
+  - base
+  note: ''
+- id: step-4
+  kind: output
+  label: 记录导出指标
+  inputs:
+  - day
+  outputs: []
+  note: ''
+- id: step-5
+  kind: transform
+  label: 计算报表总额
+  inputs:
+  - base
+  outputs:
+  - computed
+  note: 系数 1.15 需核对
+- id: step-6
+  kind: output
+  label: 渲染输出报表
+  inputs:
+  - computed
+  - format
+  outputs:
+  - report
+  note: ''
